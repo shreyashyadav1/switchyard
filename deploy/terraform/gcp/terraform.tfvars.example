@@ -1,0 +1,4 @@
+project_id  = "my-gcp-project"
+config_file = "../../../switchyard.yaml"
+# Set after pushing the first image:
+# image = "us-central1-docker.pkg.dev/my-gcp-project/switchyard/switchyard:v0.1.0"
