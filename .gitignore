@@ -1,0 +1,8 @@
+/bin/
+/dist/
+*.out
+.env
+switchyard.yaml
+deploy/terraform/**/.terraform/
+deploy/terraform/**/*.tfstate*
+deploy/terraform/**/terraform.tfvars
