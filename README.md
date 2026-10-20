@@ -29,7 +29,9 @@ flowchart LR
 
 - **OpenAI-compatible API**: `POST /v1/chat/completions` (streaming and non-streaming),
   `POST /v1/embeddings`, `GET /v1/models`. Request fields the gateway doesn't know about pass
-  through unchanged, and numbers keep their exact value.
+  through unchanged, and numbers keep their exact value. The same routes are also served under
+  `/openai/v1/...`, the path Groq's SDKs use, so a Groq-SDK client only needs its base URL set
+  to the gateway's root.
 - **Model names you choose**: clients ask for `gpt-oss-120b`; the config maps that name to an
   ordered list of provider/model targets.
 - **Retries and fallback**: transient failures are retried with exponential backoff and jitter,

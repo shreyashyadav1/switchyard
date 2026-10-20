@@ -102,9 +102,13 @@ func (g *Gateway) Handler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, `{"status":"ok"}`)
 	})
-	mux.HandleFunc("GET /v1/models", g.listModels)
-	mux.HandleFunc("POST /v1/chat/completions", g.forward(chatPath))
-	mux.HandleFunc("POST /v1/embeddings", g.forward(embeddingsPath))
+	// The same API under /openai/v1, the path Groq's SDKs use, so clients built on
+	// them only need their base URL pointed at the gateway.
+	for _, prefix := range []string{"/v1", "/openai/v1"} {
+		mux.HandleFunc("GET "+prefix+"/models", g.listModels)
+		mux.HandleFunc("POST "+prefix+chatPath, g.forward(chatPath))
+		mux.HandleFunc("POST "+prefix+embeddingsPath, g.forward(embeddingsPath))
+	}
 	return mux
 }
 

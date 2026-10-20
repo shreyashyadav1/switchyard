@@ -31,6 +31,7 @@ type upstream struct {
 	mu      sync.Mutex
 	bodies  []map[string]any
 	headers []http.Header
+	paths   []string
 	respond func(w http.ResponseWriter, call int, body map[string]any)
 }
 
@@ -43,6 +44,7 @@ func newUpstream(t testing.TB, respond func(w http.ResponseWriter, call int, bod
 		u.mu.Lock()
 		u.bodies = append(u.bodies, body)
 		u.headers = append(u.headers, r.Header.Clone())
+		u.paths = append(u.paths, r.URL.Path)
 		u.mu.Unlock()
 		u.respond(w, n, body)
 	}))
@@ -530,5 +532,19 @@ func TestRetryAfterParsing(t *testing.T) {
 		if got != tc.want || ok != tc.ok {
 			t.Errorf("%q: got %v %v", tc.in, got, ok)
 		}
+	}
+}
+
+func TestGroqSDKPathAlias(t *testing.T) {
+	primary := newUpstream(t, func(w http.ResponseWriter, _ int, _ map[string]any) { completion(w, 1, 1) })
+	h := newHarness(t, primary, newUpstream(t, status(500)), "")
+
+	resp := h.post(t, "/openai/v1/chat/completions", chatBody)
+	if resp.StatusCode != 200 || resp.Header.Get(headerTarget) != "primary/big-model" {
+		t.Fatalf("status %d target %q", resp.StatusCode, resp.Header.Get(headerTarget))
+	}
+	// The alias only changes the client-facing path: upstreams still get their own.
+	if got := primary.paths[0]; got != "/v1/chat/completions" {
+		t.Errorf("upstream path = %q", got)
 	}
 }
