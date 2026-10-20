@@ -1,0 +1,50 @@
+# Copy to switchyard.yaml and adjust. Prices are US dollars per million
+# tokens; check each provider's pricing page before relying on cost numbers.
+listen: ":8080"
+
+providers:
+  groq:
+    base_url: https://api.groq.com/openai/v1
+    api_key_env: GROQ_API_KEY
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+  # A self-hosted OpenAI-compatible server, such as vLLM, needs no key.
+  local:
+    base_url: http://localhost:8000/v1
+
+models:
+  # Clients send "model": "gpt-oss-120b". Groq serves it; OpenRouter takes
+  # over when Groq keeps failing or rate-limits for longer than retry.max_delay.
+  - name: gpt-oss-120b
+    targets:
+      - provider: groq
+        model: openai/gpt-oss-120b
+        price: {input: 0.15, output: 0.60} # Groq model page, checked 2026-10-10
+      - provider: openrouter
+        model: openai/gpt-oss-120b
+        price: {input: 0.15, output: 0.60} # placeholder: copy OpenRouter's current price
+  - name: local
+    targets:
+      - provider: local
+        model: Qwen/Qwen2.5-1.5B-Instruct
+
+# Create keys with `switchyard keygen -name <name>`. Only digests go here.
+keys:
+  - name: example
+    sha256: 0000000000000000000000000000000000000000000000000000000000000000
+    requests_per_minute: 30
+    daily_budget_usd: 1.00
+
+cache:
+  enabled: true
+  ttl: 10m
+  max_entries: 1000
+
+retry:
+  max_attempts: 2
+  base_delay: 250ms
+  max_delay: 4s
+
+upstream_timeout: 30s
+request_timeout: 5m

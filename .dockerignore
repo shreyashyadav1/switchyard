@@ -1,0 +1,6 @@
+.git
+bin
+deploy
+*.md
+switchyard.yaml
+.env
