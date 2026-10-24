@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: switchyard
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+# Separate Service so the client-facing one never exposes metrics, whose
+# series include key names and spend.
+apiVersion: v1
+kind: Service
+metadata:
+  name: switchyard-metrics
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics

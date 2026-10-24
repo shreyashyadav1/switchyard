@@ -1,0 +1,24 @@
+# Applies only where the CNI enforces NetworkPolicy (kind's default CNI does
+# not). Egress stays open: the gateway calls provider APIs on the internet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: switchyard
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: switchyard
+  policyTypes: [Ingress]
+  ingress:
+    # API traffic from any pod in the cluster.
+    - ports:
+        - port: http
+      from:
+        - namespaceSelector: {}
+    # Metrics only from the monitoring namespace.
+    - ports:
+        - port: metrics
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring

@@ -48,8 +48,8 @@ flowchart LR
 - **Observability**: one JSON log line per request; Prometheus metrics on a separate private
   listener; OpenTelemetry spans that continue the caller's W3C trace context and use the
   `gen_ai.*` attribute names.
-- **Deployment**: distroless container image and a Terraform module for Google Cloud Run sized
-  for the free tier.
+- **Deployment**: distroless container image, a Terraform module for Google Cloud Run sized
+  for the free tier, and Kustomize manifests for Kubernetes.
 
 ## Quick start
 
@@ -149,6 +149,17 @@ docker push REPOSITORY/switchyard:v0.1.0
 terraform apply                                      # creates the Cloud Run service; prints url
 ```
 
+## Deploying to Kubernetes
+
+`deploy/kubernetes` is a Kustomize base: a hardened single-replica Deployment with health
+probes, separate Services for the API and for metrics, a NetworkPolicy that limits metrics to
+the `monitoring` namespace, and a service account without an API token. The config and provider
+keys go in Secrets you create yourself; see [deploy/kubernetes/README.md](deploy/kubernetes/README.md).
+
+```sh
+kubectl apply -n switchyard -k deploy/kubernetes
+```
+
 ## Limits
 
 - Rate limits, budgets and the cache live in process memory. With several replicas each one
@@ -165,6 +176,7 @@ make test       # go test -race ./...
 make lint       # gofmt + go vet
 make bench      # gateway vs direct, against a local fake upstream
 make tf-check   # terraform fmt + validate
+make k8s-check  # render the Kustomize base + kubeconform
 ```
 
 ## License

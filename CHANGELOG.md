@@ -19,3 +19,5 @@ All notable changes to this project are documented here. The format follows
 - JSON access logs, Prometheus metrics on a private listener, and OpenTelemetry spans that
   continue the caller's W3C trace context.
 - Distroless container image and a Terraform module for Google Cloud Run.
+- Kustomize manifests for Kubernetes: hardened single-replica Deployment, separate API and
+  metrics Services, NetworkPolicy, and a CI check with kubeconform.

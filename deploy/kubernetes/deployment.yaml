@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: switchyard
+spec:
+  # Rate limits, budgets and the cache are per process, so more replicas
+  # multiply every key's limits. Keep one until they move to a shared store.
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      serviceAccountName: switchyard
+      automountServiceAccountToken: false
+      # Shutdown waits up to 30 s for in-flight requests after SIGTERM.
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: switchyard
+          image: switchyard
+          imagePullPolicy: IfNotPresent
+          args:
+            - serve
+            - -config
+            - /etc/switchyard/switchyard.yaml
+            # In-cluster scrapes only; the NetworkPolicy limits who can reach it.
+            - -metrics-listen
+            - :9090
+          env:
+            # Overrides the config's listen address so it matches containerPort.
+            - name: PORT
+              value: "8080"
+            # Uncomment to export traces over OTLP/HTTP.
+            # - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            #   value: http://otel-collector.observability:4318
+          envFrom:
+            # Provider API keys named by api_key_env in the config.
+            - secretRef:
+                name: switchyard-provider-keys
+                optional: true
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            # Give endpoints time to drop this pod before the process stops
+            # accepting connections. The image has no shell, so use the
+            # built-in sleep action.
+            preStop:
+              sleep:
+                seconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/switchyard
+              readOnly: true
+      volumes:
+        - name: config
+          secret:
+            # The config holds key digests and routing, not provider keys,
+            # but it lives in a Secret like on Cloud Run.
+            secretName: switchyard-config
+            items:
+              - key: switchyard.yaml
+                path: switchyard.yaml
