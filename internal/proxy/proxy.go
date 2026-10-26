@@ -30,6 +30,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/shreyashyadav1/switchyard/internal/auth"
+	"github.com/shreyashyadav1/switchyard/internal/breaker"
 	"github.com/shreyashyadav1/switchyard/internal/cache"
 	"github.com/shreyashyadav1/switchyard/internal/config"
 	"github.com/shreyashyadav1/switchyard/internal/ledger"
@@ -59,9 +60,11 @@ type Gateway struct {
 	limiter *ratelimit.Limiter
 	ledger  *ledger.Ledger
 	cache   *cache.Cache
-	metrics *telemetry.Metrics
-	tracer  trace.Tracer
-	log     *slog.Logger
+	// breakers is nil when circuit breaking is disabled.
+	breakers *breaker.Set
+	metrics  *telemetry.Metrics
+	tracer   trace.Tracer
+	log      *slog.Logger
 
 	now   func() time.Time
 	sleep func(context.Context, time.Duration) error
@@ -91,6 +94,16 @@ func New(cfg *config.Config, metrics *telemetry.Metrics, log *slog.Logger) *Gate
 	}
 	if cfg.Cache.Enabled {
 		g.cache = cache.New(cfg.Cache.TTL, cfg.Cache.MaxEntries, nil)
+	}
+	if !cfg.Breaker.Disabled {
+		// g.now is read on each call so tests can swap the clock after New.
+		g.breakers = breaker.New(cfg.Breaker.FailureThreshold, cfg.Breaker.Cooldown,
+			func() time.Time { return g.now() }, g.breakerChanged)
+		for _, m := range cfg.Models {
+			for _, t := range m.Targets {
+				metrics.BreakerState.WithLabelValues(t.Label()).Set(float64(breaker.Closed))
+			}
+		}
 	}
 	return g
 }
@@ -240,8 +253,19 @@ func (g *Gateway) forward(endpoint string) http.HandlerFunc {
 		}
 
 		var lastErr error
+		skipped := 0
+		var retryIn time.Duration
 		for _, t := range model.Targets {
+			if ok, wait := g.allowTarget(span, t); !ok {
+				skipped++
+				if retryIn == 0 || wait < retryIn {
+					retryIn = wait
+				}
+				lastErr = fmt.Errorf("%s: circuit open", t.Label())
+				continue
+			}
 			resp, err := g.call(ctx, operation, endpoint, t, req, ex)
+			g.reportTarget(ctx, t, err)
 			if err != nil {
 				lastErr = err
 				if ctx.Err() != nil {
@@ -263,6 +287,13 @@ func (g *Gateway) forward(endpoint string) http.HandlerFunc {
 		}
 
 		ex.err = lastErr
+		if skipped == len(model.Targets) {
+			// Every target is known to be down: answer now rather than retrying them.
+			sw.Header().Set("Retry-After", strconv.Itoa(max(1, int(math.Ceil(retryIn.Seconds())))))
+			writeError(sw, http.StatusServiceUnavailable, "upstream_error", "all_targets_unavailable",
+				fmt.Sprintf("Every target for %q is failing and temporarily skipped; try again later.", name))
+			return
+		}
 		if ctx.Err() != nil {
 			writeError(sw, http.StatusGatewayTimeout, "upstream_error", "upstream_timeout",
 				"The request timed out before any target answered.")
@@ -349,6 +380,40 @@ func (g *Gateway) call(ctx context.Context, operation, endpoint string, t config
 			return nil, err
 		}
 	}
+}
+
+// allowTarget asks t's circuit breaker whether to try it, and records a skip.
+func (g *Gateway) allowTarget(span trace.Span, t config.Target) (bool, time.Duration) {
+	if g.breakers == nil {
+		return true, 0
+	}
+	ok, wait := g.breakers.Allow(t.Label())
+	if !ok {
+		g.metrics.BreakerSkips.WithLabelValues(t.Label()).Inc()
+		span.AddEvent("switchyard.breaker.skip", trace.WithAttributes(attribute.String("switchyard.target", t.Label())))
+	}
+	return ok, wait
+}
+
+// reportTarget feeds the result of call into t's circuit breaker. A response
+// of any kind, client errors included, means the target is up. Failures
+// caused by the client leaving or the request deadline say nothing about it.
+func (g *Gateway) reportTarget(ctx context.Context, t config.Target, err error) {
+	switch {
+	case g.breakers == nil:
+	case err == nil:
+		g.breakers.Success(t.Label())
+	case ctx.Err() != nil:
+		g.breakers.Release(t.Label())
+	default:
+		g.breakers.Failure(t.Label())
+	}
+}
+
+func (g *Gateway) breakerChanged(target string, from, to breaker.State) {
+	g.metrics.BreakerState.WithLabelValues(target).Set(float64(to))
+	g.log.Warn("circuit breaker", slog.String("target", target),
+		slog.String("from", from.String()), slog.String("to", to.String()))
 }
 
 func (g *Gateway) attempt(ctx context.Context, operation, endpoint string, t config.Target, payload []byte, n int) (*http.Response, error) {
