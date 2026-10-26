@@ -27,6 +27,10 @@ type Metrics struct {
 	Tokens   *prometheus.CounterVec
 	CostUSD  *prometheus.CounterVec
 	Duration *prometheus.HistogramVec
+	// BreakerState is each target's circuit breaker: 0 closed, 1 open, 2 half-open.
+	BreakerState *prometheus.GaugeVec
+	// BreakerSkips counts requests that skipped a target because its breaker was open.
+	BreakerSkips *prometheus.CounterVec
 }
 
 // NewMetrics registers the gateway's series on a fresh registry.
@@ -56,8 +60,16 @@ func NewMetrics() *Metrics {
 			Help:    "Client request duration, including retries, fallbacks and streaming.",
 			Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120},
 		}, []string{"model", "stream"}),
+		BreakerState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "switchyard_breaker_state",
+			Help: "Circuit breaker state by target: 0 closed, 1 open, 2 half-open.",
+		}, []string{"target"}),
+		BreakerSkips: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "switchyard_breaker_skips_total",
+			Help: "Requests that skipped a target because its circuit breaker was open.",
+		}, []string{"target"}),
 	}
-	reg.MustRegister(m.Requests, m.Attempts, m.Tokens, m.CostUSD, m.Duration)
+	reg.MustRegister(m.Requests, m.Attempts, m.Tokens, m.CostUSD, m.Duration, m.BreakerState, m.BreakerSkips)
 	return m
 }
 

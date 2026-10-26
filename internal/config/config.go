@@ -25,6 +25,7 @@ type Config struct {
 	Keys           []Key               `yaml:"keys"`
 	Cache          Cache               `yaml:"cache"`
 	Retry          Retry               `yaml:"retry"`
+	Breaker        Breaker             `yaml:"breaker"`
 	// UpstreamTimeout bounds the wait for an upstream's response headers.
 	UpstreamTimeout time.Duration `yaml:"upstream_timeout"`
 	// RequestTimeout bounds a whole client request, including retries,
@@ -89,6 +90,15 @@ type Retry struct {
 	MaxDelay    time.Duration `yaml:"max_delay"`
 }
 
+// Breaker configures the per-target circuit breakers. A target whose calls
+// fail FailureThreshold times in a row (after their retries) is skipped for
+// Cooldown, then one probe request decides whether it is back.
+type Breaker struct {
+	Disabled         bool          `yaml:"disabled"`
+	FailureThreshold int           `yaml:"failure_threshold"`
+	Cooldown         time.Duration `yaml:"cooldown"`
+}
+
 // Load reads, defaults and validates the file at path, and resolves provider
 // keys from the environment.
 func Load(path string) (*Config, error) {
@@ -137,6 +147,12 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Retry.MaxDelay == 0 {
 		c.Retry.MaxDelay = 4 * time.Second
+	}
+	if c.Breaker.FailureThreshold == 0 {
+		c.Breaker.FailureThreshold = 5
+	}
+	if c.Breaker.Cooldown == 0 {
+		c.Breaker.Cooldown = 30 * time.Second
 	}
 	if c.UpstreamTimeout == 0 {
 		c.UpstreamTimeout = 30 * time.Second
@@ -216,6 +232,12 @@ func (c *Config) validate() error {
 	}
 	if c.Retry.MaxAttempts < 1 {
 		errs = append(errs, errors.New("retry.max_attempts must be at least 1"))
+	}
+	if c.Breaker.FailureThreshold < 1 {
+		errs = append(errs, errors.New("breaker.failure_threshold must be at least 1"))
+	}
+	if c.Breaker.Cooldown < 0 {
+		errs = append(errs, errors.New("breaker.cooldown cannot be negative"))
 	}
 	if c.Cache.Enabled && c.Cache.MaxEntries < 0 {
 		errs = append(errs, errors.New("cache.max_entries cannot be negative"))

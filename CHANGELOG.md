@@ -18,4 +18,8 @@ All notable changes to this project are documented here. The format follows
 - Per-key exact-match LRU response cache for embeddings and `temperature: 0` chat requests.
 - JSON access logs, Prometheus metrics on a private listener, and OpenTelemetry spans that
   continue the caller's W3C trace context.
+- Per-target circuit breakers (`breaker.failure_threshold`, `breaker.cooldown`): a target that
+  keeps failing is skipped until a probe request succeeds; when every target is open the gateway
+  answers `503 all_targets_unavailable` with `Retry-After`. New metrics
+  `switchyard_breaker_state` and `switchyard_breaker_skips_total`.
 - Distroless container image and a Terraform module for Google Cloud Run.

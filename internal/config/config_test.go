@@ -56,6 +56,9 @@ retry:
 	if cfg.Cache.TTL != 10*time.Minute || cfg.Cache.MaxEntries != 1000 {
 		t.Errorf("cache defaults not applied: %+v", cfg.Cache)
 	}
+	if cfg.Breaker.Disabled || cfg.Breaker.FailureThreshold != 5 || cfg.Breaker.Cooldown != 30*time.Second {
+		t.Errorf("breaker defaults not applied: %+v", cfg.Breaker)
+	}
 	if got := cfg.Models[0].Targets[0].Label(); got != "groq/openai/gpt-oss-120b" {
 		t.Errorf("label = %q", got)
 	}
@@ -103,6 +106,12 @@ providers: {p: {base_url: "http://x", api_key_env: NOPE}}
 models: [{name: m, targets: [{provider: p, model: x}]}]
 allow_anonymous: true
 `, "NOPE is not set"},
+		"negative breaker threshold": {`
+providers: {p: {base_url: "http://x"}}
+models: [{name: m, targets: [{provider: p, model: x}]}]
+allow_anonymous: true
+breaker: {failure_threshold: -1}
+`, "failure_threshold must be at least 1"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

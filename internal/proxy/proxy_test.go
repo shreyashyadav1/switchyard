@@ -319,6 +319,116 @@ func TestAllTargetsFailing(t *testing.T) {
 	}
 }
 
+func TestOpenBreakerSkipsFailingTarget(t *testing.T) {
+	primary := newUpstream(t, status(http.StatusBadGateway))
+	secondary := newUpstream(t, func(w http.ResponseWriter, _ int, _ map[string]any) { completion(w, 1, 1) })
+	h := newHarness(t, primary, secondary, "breaker: {failure_threshold: 2, cooldown: 30s}")
+
+	for range 2 {
+		if resp := h.post(t, "/v1/chat/completions", chatBody); resp.StatusCode != 200 {
+			t.Fatalf("status %d", resp.StatusCode)
+		}
+	}
+	if primary.calls.Load() != 4 {
+		t.Fatalf("primary calls = %d, want 2 requests x 2 attempts", primary.calls.Load())
+	}
+	sleeps := len(h.sleeps)
+
+	resp := h.post(t, "/v1/chat/completions", chatBody)
+	if resp.StatusCode != 200 || resp.Header.Get(headerTarget) != "secondary/small-model" {
+		t.Fatalf("status %d target %q", resp.StatusCode, resp.Header.Get(headerTarget))
+	}
+	if primary.calls.Load() != 4 || len(h.sleeps) != sleeps {
+		t.Errorf("an open breaker must skip the target without retries: calls %d, sleeps %v", primary.calls.Load(), h.sleeps)
+	}
+	m := h.gw.metrics
+	if got := testutil.ToFloat64(m.BreakerSkips.WithLabelValues("primary/big-model")); got != 1 {
+		t.Errorf("skips metric = %v", got)
+	}
+	if got := testutil.ToFloat64(m.BreakerState.WithLabelValues("primary/big-model")); got != 1 {
+		t.Errorf("state metric = %v, want 1 (open)", got)
+	}
+	if got := testutil.ToFloat64(m.BreakerState.WithLabelValues("secondary/small-model")); got != 0 {
+		t.Errorf("secondary state metric = %v, want 0 (closed)", got)
+	}
+}
+
+func TestAllBreakersOpenFailsFast(t *testing.T) {
+	primary, secondary := newUpstream(t, status(500)), newUpstream(t, status(500))
+	h := newHarness(t, primary, secondary, "breaker: {failure_threshold: 1, cooldown: 30s}")
+
+	if resp := h.post(t, "/v1/chat/completions", chatBody); resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("first request status %d", resp.StatusCode)
+	}
+	calls := primary.calls.Load() + secondary.calls.Load()
+
+	resp := h.post(t, "/v1/chat/completions", chatBody)
+	if resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "30" {
+		t.Fatalf("status %d, Retry-After %q", resp.StatusCode, resp.Header.Get("Retry-After"))
+	}
+	if code := errorCode(t, resp); code != "all_targets_unavailable" {
+		t.Errorf("code = %q", code)
+	}
+	if got := primary.calls.Load() + secondary.calls.Load(); got != calls {
+		t.Errorf("upstream calls went from %d to %d while every breaker was open", calls, got)
+	}
+}
+
+func TestBreakerProbesAfterCooldown(t *testing.T) {
+	var down atomic.Bool
+	down.Store(true)
+	primary := newUpstream(t, func(w http.ResponseWriter, _ int, _ map[string]any) {
+		if down.Load() {
+			http.Error(w, "down", http.StatusServiceUnavailable)
+			return
+		}
+		completion(w, 1, 1)
+	})
+	secondary := newUpstream(t, func(w http.ResponseWriter, _ int, _ map[string]any) { completion(w, 1, 1) })
+	h := newHarness(t, primary, secondary, "breaker: {failure_threshold: 1, cooldown: 30s}")
+	now := time.Unix(1_700_000_000, 0)
+	h.gw.now = func() time.Time { return now }
+
+	h.post(t, "/v1/chat/completions", chatBody) // trips the primary's breaker
+	down.Store(false)
+	now = now.Add(10 * time.Second)
+	if resp := h.post(t, "/v1/chat/completions", chatBody); resp.Header.Get(headerTarget) != "secondary/small-model" {
+		t.Fatalf("during the cooldown target = %q", resp.Header.Get(headerTarget))
+	}
+	now = now.Add(20 * time.Second)
+	if resp := h.post(t, "/v1/chat/completions", chatBody); resp.Header.Get(headerTarget) != "primary/big-model" {
+		t.Fatalf("after the cooldown target = %q, want the probe to reach the primary", resp.Header.Get(headerTarget))
+	}
+	if got := testutil.ToFloat64(h.gw.metrics.BreakerState.WithLabelValues("primary/big-model")); got != 0 {
+		t.Errorf("state metric = %v, want 0 (closed) after a good probe", got)
+	}
+}
+
+func TestClientErrorsDoNotTripBreaker(t *testing.T) {
+	primary := newUpstream(t, status(http.StatusBadRequest))
+	h := newHarness(t, primary, newUpstream(t, status(500)), "breaker: {failure_threshold: 1}")
+	for range 3 {
+		if resp := h.post(t, "/v1/chat/completions", chatBody); resp.StatusCode != 400 {
+			t.Fatalf("status %d", resp.StatusCode)
+		}
+	}
+	if primary.calls.Load() != 3 {
+		t.Errorf("primary calls = %d; a 400 means the target is up", primary.calls.Load())
+	}
+}
+
+func TestBreakerCanBeDisabled(t *testing.T) {
+	primary := newUpstream(t, status(500))
+	secondary := newUpstream(t, func(w http.ResponseWriter, _ int, _ map[string]any) { completion(w, 1, 1) })
+	h := newHarness(t, primary, secondary, "breaker: {disabled: true, failure_threshold: 1}")
+	for range 3 {
+		h.post(t, "/v1/chat/completions", chatBody)
+	}
+	if primary.calls.Load() != 6 {
+		t.Errorf("primary calls = %d, want every request to try it twice", primary.calls.Load())
+	}
+}
+
 func TestStreamingPassesChunksAndCountsUsage(t *testing.T) {
 	chunks := []string{
 		`data: {"choices":[{"delta":{"content":"Hel"}}]}`,
