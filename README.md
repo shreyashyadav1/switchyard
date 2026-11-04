@@ -149,6 +149,12 @@ docker push REPOSITORY/switchyard:v0.1.0
 terraform apply                                      # creates the Cloud Run service; prints url
 ```
 
+## Performance
+
+On an Apple M3, the gateway adds about 44 µs per non-streaming request over a direct call to a
+local fake upstream (median of 10 runs: 78.9 µs vs 34.7 µs). Method, raw output and what isn't
+covered: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+
 ## Limits
 
 - Rate limits, budgets and the cache live in process memory. With several replicas each one
@@ -163,7 +169,7 @@ terraform apply                                      # creates the Cloud Run ser
 ```sh
 make test       # go test -race ./...
 make lint       # gofmt + go vet
-make bench      # gateway vs direct, against a local fake upstream
+make bench      # gateway vs direct latency and throughput, local fake upstream
 make tf-check   # terraform fmt + validate
 ```
 

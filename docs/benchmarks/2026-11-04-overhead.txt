@@ -1,0 +1,46 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/shreyashyadav1/switchyard/internal/proxy
+cpu: Apple M3
+BenchmarkOverhead/latency/direct-8         	   32590	     35716 ns/op	    9647 B/op	     115 allocs/op
+BenchmarkOverhead/latency/direct-8         	   36116	     33338 ns/op	    9499 B/op	     115 allocs/op
+BenchmarkOverhead/latency/direct-8         	   34412	     34748 ns/op	    9532 B/op	     115 allocs/op
+BenchmarkOverhead/latency/direct-8         	   34759	     34825 ns/op	    9467 B/op	     115 allocs/op
+BenchmarkOverhead/latency/direct-8         	   34728	     34553 ns/op	    9499 B/op	     115 allocs/op
+BenchmarkOverhead/latency/direct-8         	   35407	     34499 ns/op	    9541 B/op	     115 allocs/op
+BenchmarkOverhead/latency/direct-8         	   34720	     34883 ns/op	    9598 B/op	     115 allocs/op
+BenchmarkOverhead/latency/direct-8         	   34461	     34763 ns/op	    9326 B/op	     115 allocs/op
+BenchmarkOverhead/latency/direct-8         	   34497	     34037 ns/op	    9661 B/op	     115 allocs/op
+BenchmarkOverhead/latency/direct-8         	   34472	     34203 ns/op	    9320 B/op	     115 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   15116	     79647 ns/op	   23971 B/op	     304 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   15115	     78919 ns/op	   24938 B/op	     304 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   15162	     78681 ns/op	   23966 B/op	     304 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   15112	     78818 ns/op	   23965 B/op	     304 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   15097	     78970 ns/op	   23965 B/op	     304 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   15051	     79077 ns/op	   23965 B/op	     304 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   15086	     79056 ns/op	   23966 B/op	     304 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   15289	     78378 ns/op	   25167 B/op	     304 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   14888	     79494 ns/op	   23965 B/op	     304 allocs/op
+BenchmarkOverhead/latency/gateway-8        	   15038	     78184 ns/op	   23966 B/op	     304 allocs/op
+BenchmarkOverhead/throughput/direct-8      	  128425	     10612 ns/op	    9492 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/direct-8      	  126308	     11439 ns/op	    9541 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/direct-8      	  113668	     14019 ns/op	    9469 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/direct-8      	  106803	     13362 ns/op	    9483 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/direct-8      	  121519	     28064 ns/op	    9683 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/direct-8      	  122070	     12007 ns/op	    9313 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/direct-8      	  107073	     11514 ns/op	    9572 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/direct-8      	  105220	     11529 ns/op	    9583 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/direct-8      	  101056	     11543 ns/op	    9313 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/direct-8      	   83220	     12586 ns/op	    9313 B/op	     114 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   36362	     27963 ns/op	   24916 B/op	     302 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   35910	     28585 ns/op	   24951 B/op	     302 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   42370	     26885 ns/op	   23961 B/op	     302 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   37162	     29408 ns/op	   23962 B/op	     302 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   37297	     29610 ns/op	   23962 B/op	     302 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   33134	     31289 ns/op	   23962 B/op	     302 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   35239	     32636 ns/op	   25193 B/op	     302 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   28707	     37078 ns/op	   25509 B/op	     302 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   28524	     36305 ns/op	   23963 B/op	     302 allocs/op
+BenchmarkOverhead/throughput/gateway-8     	   27506	     41172 ns/op	   23962 B/op	     302 allocs/op
+PASS
+ok  	github.com/shreyashyadav1/switchyard/internal/proxy	607.060s
